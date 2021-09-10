@@ -1,4 +1,4 @@
-# notionRecurringEvent
+# Simple notionRecurringEvent integration (WIP)
 
 - [ ] Give createPages function a number of events to create and the frequency. Each event created will have its date increased by the frequency in days.
 
