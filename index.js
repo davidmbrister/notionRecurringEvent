@@ -58,12 +58,13 @@ async function addRecurringToMapAndCreateRecurringTasks(newTasks) {
   newTasks.forEach(newTask => {
     if (taskPageIdToPropsMap[newTask.pageId]) return;
     if (newTask.postFrequency.rich_text[0]?.text.content) {
+        let interval = parseInt(newTask.postFrequency.rich_text[0]?.text.content)
         console.log(`post frequency null?: ${JSON.stringify(newTask.postFrequency)}`)
         // add to map and then create new pages according to date and frequency
         const { pageId, title, postFrequency, originalDate } = newTask
         taskPageIdToPropsMap[pageId] = {title: title, frequency: postFrequency, originalDate: originalDate}      
         const task = getPropertiesForNewEventCopy(newTask)
-        createRecurringTasks(task);
+        createRecurringTasks(task, interval);
         // create pages has to take the task and a number, then stagger the new tasks in the calendar using the task.postFrequency
         // createPages(task)
         // update database file (which is just the map object)
@@ -72,14 +73,15 @@ async function addRecurringToMapAndCreateRecurringTasks(newTasks) {
   })
 }
 
-async function createRecurringTasks(task, eventOccurences = 10, interval = 8) {
+async function createRecurringTasks(task, interval, eventOccurences = 10) {
     let startDate = new Date(task["Date"].date.start);
     startDate = moment(startDate).add(1, 'd').toDate();
     for (let i = 1; i < eventOccurences + 1; i++) {
         console.log("no error yet and newTask looks like:" + task["Date"].date.start)
         let tempDate = new Date(startDate);
         let newDate;
-        newDate = moment(tempDate).add(i, 'w').toDate(); 
+        // newDate = moment(tempDate).add(i, 'w').toDate(); 
+        newDate = moment(tempDate).add(interval*i, 'd').toDate(); 
         console.log(newDate+"before YYYY-MM-DD formatting")
         moment(newDate).format('YYYY-MM-DD');
         console.log(newDate)
