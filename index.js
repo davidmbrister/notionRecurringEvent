@@ -7,11 +7,12 @@
 
 ================================================================================ */
 
-const { Client } = require("@notionhq/client")
-const dotenv = require("dotenv")
-const moment = require('moment')
+import { Client } from "@notionhq/client"
+import * as dotenv from "dotenv"
+import moment from 'moment'
 const OPERATION_BATCH_SIZE = 10
-const _ = require("lodash")
+import _ from "lodash"
+import * as fs from 'fs';
 
 dotenv.config()
 const notion = new Client({ auth: process.env.NOTION_KEY })
@@ -38,6 +39,26 @@ setInitialTaskPageIdToPropsMap().then(() => {
  */
 async function setInitialTaskPageIdToPropsMap() {
   const currentTasks = await getTasksFromNotionDatabase()
+  // Currently there's no initialization, but draw initial state from persistent storage here
+  let filehandle = null;
+  let previousState;
+  try {
+    filehandle =  fs.open('cache.txt', 'a+', (err, fd) => {
+      // => [Error: EISDIR: illegal operation on a directory, open <directory>]
+    });
+      fs.readFile('cache.txt', (err, data) => {
+      if (err) throw err;
+      console.log(data);
+      previousState = data;
+      console.log("Previous State: "+previousState)
+      let parsedPrevState = JSON.parse(previousState.toString())
+      console.log("Previous State: "+parsedPrevState)
+      Object.assign(taskPageIdToPropsMap, parsedPrevState) 
+    });
+    
+  } finally {
+    //await filehandle?.close();
+  }
   /* for (const { pageId, frequency, originalDate, title } of currentTasks) {
     taskPageIdToPropsMap[pageId] = {title: title, frequency: frequency, originalDate: originalDate}
   } */
@@ -54,6 +75,13 @@ async function findNewTasksAndCheckRecurring() {
   await addRecurringToMapAndCreateRecurringTasks(newTasks)
 }
 
+/**
+ * Compares task to most recent version of task stored in taskPageIdToPropsMap.
+ * Returns any tasks that have a different status than their last version.
+ *
+ * @param {Array<{ pageId: string, status: string, title: string }>} currentTasks
+ * @todo break this into separate functions
+ */
 async function addRecurringToMapAndCreateRecurringTasks(newTasks) {
   newTasks.forEach(newTask => {
     if (taskPageIdToPropsMap[newTask.pageId]) return;
@@ -65,14 +93,36 @@ async function addRecurringToMapAndCreateRecurringTasks(newTasks) {
         taskPageIdToPropsMap[pageId] = {title: title, frequency: postFrequency, originalDate: originalDate}      
         const task = getPropertiesForNewEventCopy(newTask)
         createRecurringTasks(task, interval);
-        // create pages has to take the task and a number, then stagger the new tasks in the calendar using the task.postFrequency
-        // createPages(task)
+
         // update database file (which is just the map object)
+        let filehandle = null;
+        try {
+         filehandle =  fs.open('cache.txt', 'a+', (err, fd) => {
+            // => [Error: EISDIR: illegal operation on a directory, open <directory>]
+          });
+          fs.writeFile(
+            "./cache.txt",
+            JSON.stringify(taskPageIdToPropsMap),
+            "utf-8",
+            function(err) {
+              if (err) throw err
+              console.log("Done!")
+            }
+          )
+        } finally {
+           //
+        }
     }
     
   })
 }
-
+/**
+ * Compares task to most recent version of task stored in taskPageIdToPropsMap.
+ * Returns any tasks that have a different status than their last version.
+ *
+ * @param {Array<{ pageId: string, status: string, title: string }>} currentTasks
+ * @returns {Array<{ pageId: string, status: string, title: string }>}
+ */
 async function createRecurringTasks(task, interval, eventOccurences = 10) {
     let startDate = new Date(task["Date"].date.start);
     startDate = moment(startDate).add(1, 'd').toDate();
@@ -147,8 +197,6 @@ function findNewTasks(currentTasks) {
   })
 }
 
-
-
 /**
  * Creates event properties to conform to this database's schema properties.
  *
@@ -165,7 +213,6 @@ function getPropertiesForNewEventCopy(task) {
     }
   }
 }
-
 
 /**
  * Creates new pages in Notion.
